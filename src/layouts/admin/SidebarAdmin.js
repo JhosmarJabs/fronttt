@@ -326,7 +326,7 @@ const SidebarAdmin = ({ collapsed, onToggle }) => {
               {expandedMenus.iot ? <FaChevronDown size={12} /> : <FaChevronRight size={12} />}
             </span>
           </div>
-          {/* <div style={{
+          <div style={{
             ...styles.submenuContainer,
             ...(expandedMenus.iot ? styles.submenuExpanded : {})
           }}>
@@ -339,32 +339,9 @@ const SidebarAdmin = ({ collapsed, onToggle }) => {
                   <span style={styles.submenuText}>Vista General</span>
                 </Link>
               </li>
-              <li style={styles.submenuItem}>
-                <Link to="/admin/iot/vinculacion" style={{
-                  ...styles.submenuLink,
-                  ...(isActive('/admin/iot/vinculacion') ? styles.menuLinkActive : {})
-                }}>
-                  <span style={styles.submenuText}>Vinculación</span>
-                </Link>
-              </li>
-              <li style={styles.submenuItem}>
-                <Link to="/admin/iot/altas" style={{
-                  ...styles.submenuLink,
-                  ...(isActive('/admin/iot/altas') ? styles.menuLinkActive : {})
-                }}>
-                  <span style={styles.submenuText}>Modificaciónes</span>
-                </Link>
-              </li>
-              <li style={styles.submenuItem}>
-                <Link to="/admin/iot/usuarios" style={{
-                  ...styles.submenuLink,
-                  ...(isActive('/admin/iot/usuarios') ? styles.menuLinkActive : {})
-                }}>
-                  <span style={styles.submenuText}>Usuarios</span>
-                </Link>
-              </li>
+
             </ul>
-          </div> */}
+          </div>
         </li>
         
         {/* Información */}

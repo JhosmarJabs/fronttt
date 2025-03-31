@@ -3,9 +3,11 @@ import {Container,Row,Col,Card,Table,Button,Form,Modal,Badge,Alert,Spinner,Input
 import { FaPlus, FaEdit, FaTrash, FaSearch, FaFilter, FaInfoCircle, FaBox, FaDollarSign, FaSave} from "react-icons/fa";
 import { colors, textStyles } from "../../../styles/styles";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 import { API_URL } from "../../../config";
 
 const ProductosGeneral = () => {
+  const navigate = useNavigate();
   // Estado para productos
   const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,13 +20,17 @@ const ProductosGeneral = () => {
   const [ordenamiento, setOrdenamiento] = useState("price:asc");
   const [paginaActual, setPaginaActual] = useState(1);
   const [totalPaginas, setTotalPaginas] = useState(1);
-  const [limite, setLimite] = useState(10);
+  const [limite, setLimite] = useState(50);
 
   // Estado para modales
   const [showModalAlta, setShowModalAlta] = useState(false);
   const [showModalEdicion, setShowModalEdicion] = useState(false);
   const [showModalEliminar, setShowModalEliminar] = useState(false);
   const [productoSeleccionado, setProductoSeleccionado] = useState(null);
+
+  // Estado para la busqueda en tiempo real
+  const [productosVisibles, setProductosVisibles] = useState([]);
+  const [busquedaLocal, setBusquedaLocal] = useState("");
 
   // Estado para formulario de producto
   const [formData, setFormData] = useState({
@@ -93,16 +99,10 @@ const ProductosGeneral = () => {
 
   // Cargar productos cuando cambian los filtros o la paginación
   useEffect(() => {
-    cargarProductos();
-  }, [
-    paginaActual,
-    limite,
-    categoriaFiltro,
-    marcaFiltro,
-    precioMin,
-    precioMax,
-    ordenamiento,
-  ]);
+
+    
+  cargarProductos();
+  }, [ paginaActual, limite, categoriaFiltro, marcaFiltro, precioMin, precioMax, ordenamiento]);
 
   // Obtener categorías y marcas únicas para los filtros
   const categorias = [...new Set(productos.map((p) => p.category))];
@@ -403,44 +403,62 @@ const ProductosGeneral = () => {
   };
 
   // Función para eliminar un producto
-  const handleEliminarProducto = async () => {
-    try {
-      if (!productoSeleccionado) return;
+// Función para eliminar un producto con manejo mejorado de errores de red
+const handleEliminarProducto = async () => {
+  try {
+    if (!productoSeleccionado) return;
 
-      // Obtener token del localStorage
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("No se ha iniciado sesión o la sesión ha expirado");
-      }
-
-      // Enviar petición a la API
-      await axios.delete(`${API_URL}/productos/${productoSeleccionado._id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      // Mostrar mensaje de éxito
-      setAlerta({
-        show: true,
-        variant: "success",
-        mensaje: `El producto "${productoSeleccionado.title}" ha sido eliminado correctamente.`,
-      });
-
-      // Cerrar modal y recargar productos
-      handleCloseModalEliminar();
-      cargarProductos();
-    } catch (error) {
-      console.error("Error al eliminar producto:", error);
-      setAlerta({
-        show: true,
-        variant: "danger",
-        mensaje: `Error al eliminar producto: ${
-          error.response?.data?.mensaje || error.message
-        }`,
-      });
+    // Obtener token del localStorage
+    const token = localStorage.getItem("token");
+    if (!token) {
+      throw new Error("No se ha iniciado sesión o la sesión ha expirado");
     }
-  };
+
+    // Enviar petición a la API con timeout y configuración mejorada
+    await axios.delete(`${API_URL}/productos/${productoSeleccionado._id}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      timeout: 10000, // Timeout de 10 segundos
+      // Configuración retry en caso de fallo (opcional si usas axios-retry)
+    });
+
+    // Mostrar mensaje de éxito
+    setAlerta({
+      show: true,
+      variant: "success",
+      mensaje: `El producto "${productoSeleccionado.title}" ha sido eliminado correctamente.`,
+    });
+
+    // Cerrar modal y recargar productos
+    handleCloseModalEliminar();
+    cargarProductos();
+  } catch (error) {
+    console.error("Error al eliminar producto:", error);
+    
+    // Mensaje de error mejorado para problemas de red
+    let mensajeError = "Error al eliminar producto";
+    
+    if (error.code === "ERR_NETWORK" || error.message === "Network Error") {
+      mensajeError = "Error de conexión: No se pudo conectar con el servidor. Verifique su conexión a internet o inténtelo más tarde.";
+    } else if (error.response) {
+      // Error con respuesta del servidor
+      mensajeError = `Error del servidor: ${error.response.data?.mensaje || error.response.statusText || error.message}`;
+    } else if (error.request) {
+      // Error sin respuesta del servidor
+      mensajeError = "El servidor no respondió a la solicitud. Inténtelo más tarde.";
+    } else {
+      // Otros errores
+      mensajeError = `Error: ${error.message}`;
+    }
+    
+    setAlerta({
+      show: true,
+      variant: "danger",
+      mensaje: mensajeError,
+    });
+  }
+};
 
   // Función para aplicar filtros
   const aplicarFiltros = () => {
@@ -605,28 +623,14 @@ const ProductosGeneral = () => {
 
   return (
     <Container fluid style={{ padding: "30px 20px" }}>
-      <Row className="mb-4">
-        <Col>
-          <h2 style={pageStyles.title}>Gestión de Productos</h2>
-          <p style={textStyles.paragraph}>
-            Administre el catálogo de productos de su tienda.
-          </p>
-
-          <Button
-            variant="primary"
-            style={{
-              backgroundColor: colors.primaryDark,
-              borderColor: colors.primaryDark,
-              position: "absolute",
-              right: "30px",
-              top: "30px",
-            }}
-            onClick={handleOpenModalAlta}
-          >
-            <FaPlus className="me-2" /> Nuevo Producto
-          </Button>
-        </Col>
-      </Row>
+          <Row className="mb-4">
+          <Col>
+            <h2 style={pageStyles.title}>Gestión de Productos</h2>
+            <p style={textStyles.paragraph}>
+              Administre el catálogo de productos de su tienda.
+            </p>
+          </Col>
+        </Row>
 
       {alerta.show && (
         <Alert
@@ -693,22 +697,35 @@ const ProductosGeneral = () => {
             <FaFilter className="me-2" /> Filtros
           </Card.Title>
           <Row>
-            <Col md={3}>
-              <Form.Group className="mb-3">
-                <Form.Label>Buscar</Form.Label>
-                <InputGroup>
-                  <InputGroup.Text>
-                    <FaSearch />
-                  </InputGroup.Text>
-                  <Form.Control
-                    type="text"
-                    placeholder="Buscar por nombre..."
-                    value={filtro}
-                    onChange={(e) => setFiltro(e.target.value)}
-                  />
-                </InputGroup>
-              </Form.Group>
-            </Col>
+          <Col md={3}>
+            <Form.Group className="mb-3">
+              <Form.Label>Buscar</Form.Label>
+              <InputGroup>
+                <InputGroup.Text>
+                  <FaSearch />
+                </InputGroup.Text>
+                <Form.Control
+                  type="text"
+                  placeholder="Buscar por nombre, descripción..."
+                  value={busquedaLocal}
+                  onChange={(e) => setBusquedaLocal(e.target.value)}
+                />
+                {busquedaLocal && (
+                  <Button 
+                    variant="outline-secondary" 
+                    onClick={() => setBusquedaLocal("")}
+                  >
+                    ×
+                  </Button>
+                )}
+              </InputGroup>
+              {busquedaLocal && (
+                <Form.Text className="text-muted">
+                  Mostrando {productosVisibles.length} de {productos.length} productos
+                </Form.Text>
+              )}
+            </Form.Group>
+          </Col>
             <Col md={2}>
               <Form.Group className="mb-3">
                 <Form.Label>Categoría</Form.Label>
@@ -814,6 +831,26 @@ const ProductosGeneral = () => {
         <Card.Body>
           <Card.Title className="mb-4">Listado de Productos</Card.Title>
 
+          <div style={{
+              position: "absolute",
+              right: "30px",
+              top: "-5px",
+              display: "flex",
+              gap: "10px"
+            }}>
+              {/* Botón existente para abrir modal */}
+              <Button
+                variant="primary"
+                style={{
+                  backgroundColor: colors.primaryDark,
+                  borderColor: colors.primaryDark,
+                }}
+                onClick={handleOpenModalAlta}
+              >
+                <FaPlus className="me-2" /> Agregar Productos
+              </Button>
+            </div>
+
           {loading ? (
             <div style={pageStyles.loadingContainer}>
               <Spinner
@@ -913,7 +950,7 @@ const ProductosGeneral = () => {
                           className={
                             producto.stock === 0
                               ? "text-danger"
-                              : producto.stock < 10
+                              : producto.stock < 0
                               ? "text-warning"
                               : "text-success"
                           }

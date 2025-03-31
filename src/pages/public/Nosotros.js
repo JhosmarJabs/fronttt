@@ -294,7 +294,7 @@ const Nosotros = () => {
               onMouseLeave={() => setImageHover(false)}
             >
               <Image
-                src={`${MEDIA_URL}/empresa/Huejutla_de_Reyes.jpg `}
+                src={`${MEDIA_URL}/v1743035743/empresa/tmt4io0q6ztergp2wxnz.jpg `}
                 alt="Historia de JADA Company"
                 fluid
                 style={{
@@ -565,7 +565,7 @@ const Nosotros = () => {
                   Excelencia en diseño
                 </div>
                 <Image
-                  src={`${MEDIA_URL}/empresa/exelencia.png`}
+                  src={`${MEDIA_URL}/v1743035737/empresa/b1akx0kd1mxd8ale3wyn.png`}
                   alt="¿Por qué elegirnos?"
                   fluid
                   style={styles.image}

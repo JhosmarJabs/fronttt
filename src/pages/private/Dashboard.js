@@ -3,6 +3,7 @@ import { Row, Col, Card, Button, Form, Alert, Badge } from 'react-bootstrap';
 import { colors, typography, iotStyles } from '../../styles/styles';
 // Importamos mqtt
 import mqtt from 'mqtt';
+import io from 'socket.io-client';
 
 // Colores llamativos para el componente de persianas
 const persianasColors = {
@@ -14,6 +15,11 @@ const persianasColors = {
   primaryBackground: "#F7F9FC", // Fondo claro
 };
 
+// Configuración MQTT - Unificamos las configuraciones como en IoTTest
+const API_URL = "http://localhost:5000"; // URL de tu backend
+const MQTT_BROKER = "ws://127.0.0.1:9001"; // Puerto WebSocket de Mosquitto 
+const MQTT_TOPIC = "sensores/led";
+
 const Dashboard = () => {
   // MQTT Client state
   const [ledState, setLedState] = useState(false); // false = apagado, true = encendido
@@ -21,6 +27,7 @@ const Dashboard = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
   const [mqttMessages, setMqttMessages] = useState({});
+  const [mensajeEstado, setMensajeEstado] = useState("");
 
   // Estados para el control de persianas
   const [persianasPosition, setPersianasPosition] = useState(50); // 0: cerrado, 100: abierto
@@ -37,155 +44,191 @@ const Dashboard = () => {
   const mqttConfig = {
     // Cambia estos valores según tu configuración
     host: '127.0.0.1',
-    port: 1883,
-    protocol: 'mqtt',
-    clientId: `persianas_client_${Math.random().toString(16).substring(2, 8)}`,
+    port: 9001, // Usamos el puerto WebSocket como en IoTTest
+    protocol: 'ws', // Cambiado a WebSocket como IoTTest
+    clientId: `dashboard_client_${Math.random().toString(16).substring(2, 8)}`,
     // Temas MQTT
     topics: {
       ledState: 'sensores/led',
       ledCommand: 'sensores/led',
-      temperature: 'home/room1/temperature',
-      humidity: 'home/room1/humidity',
-      luminosity: 'home/room1/luminosity',
-      persianasPosition: 'home/room1/persianas/position',
-      persianasCommand: 'home/room1/persianas/set',
-      persianasMode: 'home/room1/persianas/mode',
-      weatherData: 'home/weather'
+      temperature: 'sensores/temperature',
+      humidity: 'sensores/humidity',
+      luminosity: 'sensores/luminosity', // Cambiar de 'home/luminosity'
+      persianasPosition: 'sensores/motor/position',
+      persianasCommand: 'sensores/motor/set',
+      persianasMode: 'sensores/motor/mode',
+      weatherData: 'sensores/weather'
     }
   };
 
-  const toggleLed = useCallback(() => {
-    const newState = !ledState;
-    if (client && isConnected) {
-      client.publish(mqttConfig.topics.ledCommand, newState ? '1' : '0', { qos: 1 }, (error) => {
-        if (error) {
-          console.error('Error al publicar comando de LED:', error);
-        } else {
-          console.log(`Comando de LED enviado: ${newState ? '1' : '0'}`);
-        }
-      });
-    } else {
-      console.warn('No se puede enviar comando al LED: no hay conexión MQTT');
-    }
-    // Actualizamos localmente para ver el efecto en la UI
-    setLedState(newState);
-  }, [client, isConnected, ledState, mqttConfig.topics.ledCommand]);
-
-  // Conectar al broker MQTT
-  useEffect(() => {
-    // Crear opciones de conexión MQTT
-    const options = {
-      clientId: mqttConfig.clientId,
-      clean: true,
-      reconnectPeriod: 5000, // Reconectar cada 5 segundos si se pierde la conexión
-      connectTimeout: 30 * 1000 // Timeout de 30 segundos
-    };
-
-    // URL del broker MQTT
-    const connectUrl = `${mqttConfig.protocol}://${mqttConfig.host}:${mqttConfig.port}`;
-    
+  // Función para controlar el LED siguiendo la lógica de IoTTest
+  const controlarLed = async (accion) => {
     try {
-      const mqttClient = mqtt.connect(connectUrl, options);
-      
-      mqttClient.on('connect', () => {
-        console.log('Conectado al broker MQTT');
-        setIsConnected(true);
-        setConnectionError(null);
+      // Intentar primero publicar directamente vía MQTT si está conectado
+      if (client && isConnected) {
+        client.publish(MQTT_TOPIC, accion === "encender" ? "1" : "0", { qos: 1 }, (error) => {
+          if (error) {
+            console.error("Error enviando comando MQTT:", error);
+            setMensajeEstado("Error al enviar comando MQTT: " + error.message);
+          } else {
+            console.log(`Comando LED enviado vía MQTT: ${accion === "encender" ? "1" : "0"}`);
+          }
+        });
+        // No necesitamos actualizar el estado, ya que recibiremos la actualización vía MQTT
+      } else {
+        // Fallback al método API REST como en IoTTest
+        await fetch(`${API_URL}/control`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: accion })
+        });
+        console.log(`Comando LED enviado vía API REST: ${accion}`);
         
-        // Suscribirse a los temas relevantes
-        Object.values(mqttConfig.topics).forEach(topic => {
-          mqttClient.subscribe(topic, (err) => {
-            if (!err) {
-              console.log(`Suscrito a ${topic}`);
-            } else {
-              console.error(`Error al suscribirse a ${topic}:`, err);
-            }
-          });
+        // Obtener estado después de enviar el comando en caso de que MQTT no funcione
+        obtenerEstado();
+      }
+    } catch (err) {
+      console.error("Error enviando comando:", err);
+      setMensajeEstado("Error al controlar el LED: " + err.message);
+      // Intentar obtener estado vía API si falla MQTT
+      obtenerEstado();
+    }
+  };
+
+  // Nueva función para obtener el estado del LED vía API REST como en IoTTest
+  const obtenerEstado = async () => {
+    try {
+      const res = await fetch(`${API_URL}/estado`);
+      const data = await res.json();
+      setLedState(data.state === "1");
+      console.log(`Estado LED obtenido vía API: ${data.state === "1" ? "ENCENDIDO" : "APAGADO"}`);
+    } catch (err) {
+      console.error("Error obteniendo estado:", err);
+      setMensajeEstado("Error al obtener estado vía API: " + err.message);
+    }
+  };
+
+  // Conectar al broker MQTT con la misma lógica que IoTTest
+  useEffect(() => {
+    // Configuración mejorada para depuración como en IoTTest
+    const mqttOptions = {
+      keepalive: 30,
+      connectTimeout: 5000,
+      reconnectPeriod: 5000,
+      clientId: mqttConfig.clientId,
+    };
+    
+    console.log('Intentando conectar a MQTT broker:', MQTT_BROKER);
+    const mqttClient = mqtt.connect(MQTT_BROKER, mqttOptions);
+    
+    mqttClient.on('connect', () => {
+      console.log('Conectado al broker MQTT');
+      setIsConnected(true);
+      setConnectionError(null);
+      setMensajeEstado("Conectado a MQTT y suscrito a tópicos");
+      
+      // Suscribirse a los temas relevantes
+      Object.values(mqttConfig.topics).forEach(topic => {
+        mqttClient.subscribe(topic, (err) => {
+          if (!err) {
+            console.log(`Suscrito a ${topic}`);
+          } else {
+            console.error(`Error al suscribirse a ${topic}:`, err);
+            setMensajeEstado("Error al suscribirse: " + err.message);
+          }
         });
       });
+    });
+    
+    mqttClient.on('message', (topic, message) => {
+      const payload = message.toString();
+      console.log(`Mensaje recibido en ${topic}: ${payload}`);
       
-      mqttClient.on('error', (err) => {
-        console.error('Error de conexión MQTT:', err);
-        setConnectionError(`Error de conexión: ${err.message}`);
-        setIsConnected(false);
-      });
-      
-      mqttClient.on('reconnect', () => {
-        console.log('Intentando reconectar...');
-      });
-      
-      mqttClient.on('disconnect', () => {
-        console.log('Desconectado del broker MQTT');
-        setIsConnected(false);
-      });
-      
-      mqttClient.on('message', (topic, message) => {
-        const payload = message.toString();
-        console.log(`Mensaje recibido en ${topic}: ${payload}`);
+      try {
+        // Actualizar el estado según el tema recibido
+        if (topic === mqttConfig.topics.temperature) {
+          setTemperature(parseFloat(payload));
+        } else if (topic === mqttConfig.topics.humidity) {
+          setHumidity(parseFloat(payload));
+        } else if (topic === mqttConfig.topics.luminosity) {
+          setLuminosity(parseFloat(payload));
+        } else if (topic === mqttConfig.topics.persianasPosition) {
+          setPersianasPosition(parseInt(payload));
+        } else if (topic === mqttConfig.topics.weatherData) {
+          setWeatherData(JSON.parse(payload));
+          setLoading(false);
+        } else if (topic === mqttConfig.topics.persianasCommand) {
+          const angle = parseInt(payload);
+          setPersianasPosition(angle); // sincroniza el valor
+        } else if (topic === mqttConfig.topics.ledState) {
+          // Actualizamos la lógica como en IoTTest
+          const estado = payload.toString();
+          setLedState(estado === "1");
+          console.log(`Estado del LED actualizado vía MQTT: ${estado === "1" ? "ENCENDIDO" : "APAGADO"}`);
+        }
         
-        try {
-          // Actualizar el estado según el tema recibido
-          if (topic === mqttConfig.topics.temperature) {
-            setTemperature(parseFloat(payload));
-          } else if (topic === mqttConfig.topics.humidity) {
-            setHumidity(parseFloat(payload));
-          } else if (topic === mqttConfig.topics.luminosity) {
-            setLuminosity(parseFloat(payload));
-          } else if (topic === mqttConfig.topics.persianasPosition) {
-            setPersianasPosition(parseInt(payload));
-          } else if (topic === mqttConfig.topics.weatherData) {
-            setWeatherData(JSON.parse(payload));
-            setLoading(false);
-          } else if (topic === mqttConfig.topics.ledState) {
-            setLedState(payload === '1'); // Cambiado para usar '1' en lugar de 'on'
-          }
-          
-          // Guardar todos los mensajes MQTT para depuración
-          setMqttMessages(prev => ({
-            ...prev,
-            [topic]: payload
-          }));
-        } catch (error) {
-          console.error('Error al procesar mensaje MQTT:', error);
-        }
-      });
-      
-      setClient(mqttClient);
-      
-      // Cleanup al desmontar el componente
-      return () => {
-        if (mqttClient) {
-          console.log('Desconectando del broker MQTT...');
-          Object.values(mqttConfig.topics).forEach(topic => {
-            mqttClient.unsubscribe(topic);
-          });
-          mqttClient.end();
-        }
-      };
-    } catch (error) {
-      console.error('Error al conectar con MQTT:', error);
-      setConnectionError(`Error al inicializar la conexión: ${error.message}`);
-    }
+        // Guardar todos los mensajes MQTT para depuración
+        setMqttMessages(prev => ({
+          ...prev,
+          [topic]: payload
+        }));
+      } catch (error) {
+        console.error('Error al procesar mensaje MQTT:', error);
+      }
+    });
+    
+    mqttClient.on('error', (err) => {
+      console.error('Error MQTT:', err);
+      setConnectionError(`Error de conexión MQTT: ${err.message}`);
+      setIsConnected(false);
+      setMensajeEstado("Error de conexión MQTT: " + err.message);
+    });
+    
+    mqttClient.on('offline', () => {
+      console.log('Cliente MQTT desconectado');
+      setIsConnected(false);
+      setMensajeEstado("Desconectado del broker MQTT");
+    });
+    
+    // Guardar cliente para uso posterior
+    setClient(mqttClient);
+    
+    // Limpiar conexión al desmontar
+    return () => {
+      if (mqttClient) {
+        mqttClient.end();
+        console.log('Conexión MQTT terminada');
+      }
+    };
   }, []); // Se ejecuta solo una vez al montar el componente
 
-  // Publicar comando para mover las persianas
+  // Obtener estado inicial vía REST para tener un valor mientras se conecta MQTT
+  useEffect(() => {
+    obtenerEstado();
+    // No necesitamos el intervalo ya que MQTT nos enviará actualizaciones en tiempo real
+  }, []);
+
+  // Función para encender el LED (estilo IoTTest)
+  const encenderLed = () => {
+    controlarLed("encender");
+  };
+
+  // Función para apagar el LED (estilo IoTTest)
+  const apagarLed = () => {
+    controlarLed("apagar");
+  };
+
+  // Publicar comando para mover las persianas (corregido)
   const publishPersianaCommand = useCallback((position) => {
     if (client && isConnected) {
-      client.publish(mqttConfig.topics.persianasCommand, position.toString(), { qos: 1 }, (error) => {
-        if (error) {
-          console.error('Error al publicar comando:', error);
-        } else {
-          console.log(`Comando enviado: posición ${position}`);
-        }
-      });
-    } else {
-      console.warn('No se puede enviar comando: no hay conexión MQTT');
-      // Actualizamos localmente para ver el efecto en la UI (simulación)
-      setPersianasPosition(position);
+      const angle = Math.max(0, Math.min(position, 100)); // Clamp para seguridad
+      client.publish(mqttConfig.topics.persianasCommand, angle.toString(), { qos: 1 });
+      console.log(`Ángulo de motor enviado: ${angle}`);
     }
   }, [client, isConnected, mqttConfig.topics.persianasCommand]);
+  
 
-  // Publicar modo de operación
+  // Publicar modo de operación (mantenemos la función original)
   const publishModeCommand = useCallback((newMode) => {
     if (client && isConnected) {
       client.publish(mqttConfig.topics.persianasMode, newMode, { qos: 1 }, (error) => {
@@ -202,7 +245,7 @@ const Dashboard = () => {
     }
   }, [client, isConnected, mqttConfig.topics.persianasMode]);
 
-  // Enviar configuración de programación
+  // Enviar configuración de programación (mantenemos la función original)
   const publishScheduleConfig = useCallback(() => {
     if (client && isConnected) {
       const scheduleConfig = {
@@ -234,6 +277,12 @@ const Dashboard = () => {
         // Simular fluctuación de temperatura
         setTemperature(prev => {
           const fluctuation = (Math.random() - 0.5) * 0.2;
+          return parseFloat((prev + fluctuation).toFixed(1));
+        });
+        
+        // Simular fluctuación de humedad
+        setHumidity(prev => {
+          const fluctuation = (Math.random() - 0.5) * 1.5;
           return parseFloat((prev + fluctuation).toFixed(1));
         });
         
@@ -287,10 +336,18 @@ const Dashboard = () => {
     }
   }, [isConnected]);
 
-  // Función para manejar el cambio de posición de las persianas
+  // Función para manejar el cambio de posición de las persianas (CORREGIDA)
   const handleMovePersianas = (newPosition) => {
-    publishPersianaCommand(newPosition);
+    // Asegurar que el valor es un número entre 0 y 100
+    const validPosition = Math.max(0, Math.min(newPosition, 100));
+    
+    // Actualizar el estado local primero para una respuesta UI instantánea
+    setPersianasPosition(validPosition);
+    
+    // Enviar el comando MQTT (solo si está conectado)
+    publishPersianaCommand(validPosition);
   };
+  
 
   // Función para cambiar el modo de operación
   const handleModeChange = (newMode) => {
@@ -353,20 +410,21 @@ const Dashboard = () => {
         Administra tus persianas de forma automática basándote en la temperatura y condiciones del clima.
       </p>
       
-      {/* Mostrar estado de conexión MQTT */}
-      {connectionError && (
-        <Alert variant="danger" className="mb-4">
-          <i className="bi bi-exclamation-triangle-fill me-2"></i>
-          {connectionError}
-        </Alert>
-      )}
-      
-      {isConnected && (
-        <Alert variant="success" className="mb-4">
-          <i className="bi bi-check-circle-fill me-2"></i>
-          Conectado al servidor MQTT
-        </Alert>
-      )}
+      {/* Estado de conexión MQTT - Mejorado con el estilo de IoTTest */}
+      <div style={{ 
+        marginBottom: "20px", 
+        padding: "10px", 
+        backgroundColor: isConnected ? "#e6f7e6" : "#f7e6e6",
+        borderRadius: "5px",
+        border: `1px solid ${isConnected ? "#c3e6c3" : "#e6c3c3"}`
+      }}>
+        <p>
+          <strong>Estado MQTT:</strong> {isConnected ? 
+              "✅ Conectado en tiempo real" : 
+              "❌ Desconectado (usando API REST como fallback)"}
+        </p>
+        {mensajeEstado && <p><small>{mensajeEstado}</small></p>}
+      </div>
       
       {loading ? (
         <div className="text-center my-5">
@@ -479,14 +537,14 @@ const Dashboard = () => {
                         </div>
                       </div>
 
-                      {/* Control deslizante y botones */}
+                      {/* Control deslizante y botones - CORREGIDO */}
                       <div className="mb-3 d-flex align-items-center">
                         <i className="bi bi-arrow-down" style={{ fontSize: '24px', color: colors.white }}></i>
                         <input 
                           type="range" 
                           min="0" 
                           max="100" 
-                          step="5"
+                          step="1"
                           value={persianasPosition}
                           onChange={(e) => handleMovePersianas(parseInt(e.target.value))}
                           className="form-range mx-2 flex-grow-1"
@@ -597,6 +655,46 @@ const Dashboard = () => {
                               style={{ 
                                 width: `${luminosity}%`, 
                                 backgroundColor: luminosity > 50 ? persianasColors.accentYellow : colors.primaryMedium,
+                                height: '100%',
+                                transition: 'width 0.5s ease'
+                              }}
+                            />
+                          </div>
+                        </Card.Body>
+                      </Card>
+
+                      {/* NUEVO: Sensor de humedad */}
+                      <Card className="mb-3 border-0 shadow-sm" style={{ borderRadius: '10px' }}>
+                        <Card.Body className="p-3 d-flex flex-column align-items-center">
+                          <i 
+                            className="bi bi-droplet-fill" 
+                            style={{ 
+                              fontSize: '36px', 
+                              color: humidity > 70 ? persianasColors.accentCoral : persianasColors.gradient2 
+                            }}
+                          ></i>
+                          <h4 style={{ 
+                            fontFamily: typography.fontPrimary,
+                            color: colors.primaryDark,
+                            margin: '10px 0',
+                            fontSize: '1.2rem',
+                            textAlign: 'center'
+                          }}>
+                            Humedad
+                          </h4>
+                          <div style={{
+                            fontFamily: typography.fontPrimary,
+                            fontSize: '2rem',
+                            fontWeight: 'bold',
+                            color: humidity > 70 ? persianasColors.accentCoral : persianasColors.gradient2
+                          }}>
+                            {humidity}%
+                          </div>
+                          <div className="w-100 mt-2" style={{ backgroundColor: '#e9ecef', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div 
+                              style={{ 
+                                width: `${humidity}%`, 
+                                backgroundColor: humidity > 70 ? persianasColors.accentCoral : persianasColors.gradient2,
                                 height: '100%',
                                 transition: 'width 0.5s ease'
                               }}
@@ -892,41 +990,65 @@ const Dashboard = () => {
               </Row>
             </Col>
           </Row>
-          {/* Control de LED */}
-          <Card className="mb-3 border-0 shadow-sm" style={{ borderRadius: '10px' }}>
-            <Card.Body className="p-3 d-flex flex-column align-items-center">
-              <i 
-                className={`bi ${ledState ? 'bi-lightbulb-fill' : 'bi-lightbulb'}`}
-                style={{ 
-                  fontSize: '36px', 
-                  color: ledState ? persianasColors.accentYellow : colors.primaryMedium 
-                }}
-              ></i>
-              <h4 style={{ 
+          
+          {/* Control de LED - Mejorado con el estilo de IoTTest */}
+          <Card className="shadow-sm mb-4" style={{ borderRadius: '15px', border: 'none' }}>
+            <Card.Body className="p-4">
+              <h3 style={{ 
+                color: colors.primaryDark, 
                 fontFamily: typography.fontPrimary,
-                color: colors.primaryDark,
-                margin: '10px 0',
-                fontSize: '1.2rem',
-                textAlign: 'center'
+                marginBottom: '15px' 
               }}>
-                Control de LED
+                💡 Control de LED (IoT)
+              </h3>
+              
+              {/* Estado del LED */}
+              <h4 style={{ marginBottom: '20px' }}>
+                Estado del LED: <span style={{ 
+                  color: ledState ? persianasColors.accentYellow : colors.primaryMedium,
+                  fontWeight: "bold"
+                }}>
+                  {ledState ? "ENCENDIDO" : "APAGADO"}
+                </span>
               </h4>
-              <Button 
-                onClick={toggleLed}
-                style={{ 
-                  backgroundColor: ledState ? persianasColors.accentYellow : colors.primaryMedium,
-                  color: colors.white,
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '8px 20px',
-                  fontWeight: 'bold',
-                  transition: 'background-color 0.3s ease'
-                }}
-              >
-                {ledState ? 'Apagar' : 'Encender'}
-              </Button>
+              
+              {/* Botones de control al estilo IoTTest */}
+              <div className="d-flex gap-3">
+                <Button 
+                  onClick={encenderLed} 
+                  style={{ 
+                    padding: "12px 20px", 
+                    background: colors.primaryLight, 
+                    color: colors.white,
+                    border: "none",
+                    borderRadius: "5px",
+                    cursor: "pointer",
+                    fontSize: "16px",
+                    fontWeight: "bold"
+                  }}
+                >
+                  Encender LED
+                </Button>
+                
+                <Button 
+                  onClick={apagarLed} 
+                  style={{ 
+                    padding: "12px 20px", 
+                    background: colors.primaryMedium, 
+                    color: colors.white,
+                    border: "none",
+                    borderRadius: "5px",
+                    cursor: "pointer",
+                    fontSize: "16px",
+                    fontWeight: "bold"
+                  }}
+                >
+                  Apagar LED
+                </Button>
+              </div>
             </Card.Body>
           </Card>
+          
           {/* Panel de debug MQTT (opcional - útil durante el desarrollo) */}
           {isConnected && (
             <Card className="shadow-sm mb-4" style={{ borderRadius: '10px', border: 'none' }}>

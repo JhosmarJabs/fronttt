@@ -63,7 +63,7 @@ const Servicios = () => {
     const fetchBeneficios = async () => {
       try {
         setLoadingBeneficios(true);
-        const response = await fetch(`${API_URL}/beneficios`);
+        const response = await fetch(`${API_URL}/servicios/beneficios`);
 
         if (!response.ok) {
           throw new Error(

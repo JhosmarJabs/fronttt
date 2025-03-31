@@ -265,7 +265,21 @@ const Login = () => {
     e.preventDefault();
     let isValid = true;
 
-    // Validar todos los campos
+
+
+
+  // Agrega este código justo antes del fetch en la función handleRegisterSubmit
+  const datosEnviados = {
+    name: nombre, 
+    surname: apellido,
+    phone: telefono,
+    email: email,
+    password: password,
+    role: "cliente",
+    status: "active"
+  };
+
+  console.log('DATOS ENVIADOS AL BACKEND:', datosEnviados);
     // Nombre
     if (!nombre) {
       setNombreError('El nombre es obligatorio');
@@ -370,7 +384,7 @@ const Login = () => {
           password: password,
           role: "cliente",
           status: "active"
-        })
+        }),
       });
 
       const data = await response.json();

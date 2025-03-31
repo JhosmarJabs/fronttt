@@ -8,8 +8,12 @@ import AdminLayout from "../layouts/AdminLayout.js";
 import Dashboard from "../pages/admin/Dashboard.js";
 // Componentes de Usuarios
 import UsuariosGeneral from "../pages/admin/usuarios/UsuariosGeneral.js";
+import UsuariosBajas from "../pages/admin/usuarios/UsuariosBajas.js";
+import UsuariosCambios from "../pages/admin/usuarios/UsuariosCambios.js";
 
 import ProductosGeneral from "../pages/admin/iot/ProductosGeneral.js";
+// Importar el nuevo componente de Alta de Productos
+import ProductosAlta from "../pages/admin/iot/ProductosAlta.js";
 import IoTTest from "../pages/admin/iot/IoTTest.js";
 
 import InformacionModificacion from "../pages/admin/informacion/InformacionModificacion.js";
@@ -33,9 +37,12 @@ const adminRoutes = (
     
     {/* Usuarios */}
     <Route path="usuarios" element={<UsuariosGeneral />} />
+    <Route path="usuarios/bajas" element={<UsuariosBajas />} />
+    <Route path="usuarios/cambios" element={<UsuariosCambios />} />
     
     {/* IoT */}
     <Route path="productos" element={<ProductosGeneral />} />
+    <Route path="productos/alta" element={<ProductosAlta />} /> {/* Nueva ruta para alta de productos */}
     <Route path="iot/test" element={<IoTTest />} />
     
     {/* Información */}

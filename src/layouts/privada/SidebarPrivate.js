@@ -116,22 +116,22 @@ const SidebarPrivate = ({ isOpen, onToggle }) => {
         textColor: colors.white
       }
     },
-    { 
-      to: "/privado/notificaciones",
-      icon: <FaBell style={styles.icon} />,
-      text: "Notificaciones",
-      badge: {
-        count: 2,
-        color: "#dc3545",
-        textColor: colors.white
-      }
-    },
-    { 
-      to: "/privado/pedidos",
-      icon: <FaClipboardList style={styles.icon} />,
-      text: "Mis Pedidos",
-      badge: null
-    },
+    // { 
+    //   to: "/privado/notificaciones",
+    //   icon: <FaBell style={styles.icon} />,
+    //   text: "Notificaciones",
+    //   badge: {
+    //     count: 2,
+    //     color: "#dc3545",
+    //     textColor: colors.white
+    //   }
+    // },
+    // { 
+    //   to: "/privado/pedidos",
+    //   icon: <FaClipboardList style={styles.icon} />,
+    //   text: "Mis Pedidos",
+    //   badge: null
+    // },
     { 
       to: "/privado/sitio",
       icon: <FaGlobe style={styles.icon} />,
