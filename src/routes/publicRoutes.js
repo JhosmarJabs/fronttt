@@ -16,6 +16,8 @@ import Login from "../pages/public/Login.js";
 import Politicas from "../pages/public/Politicas.js";
 import Testimonios from "../pages/public/Testimonios.js";
 
+import RecuperacionPassword from '../pages/public/RecuperacionPassword';
+
 // Componente para el área pública
 export const PublicRoute = ({ children }) => {
   return (<><Navbar />{children}<Footer /> </>);
@@ -33,6 +35,7 @@ const publicRoutes = [
   <Route key="testimonios" path="/testimonios" element={ <PublicRoute> <Testimonios /> </PublicRoute>}/>,
   <Route key="login" path="/login" element={ <PublicRoute> <Login /> </PublicRoute>}/>,
   <Route key="default" path="*" element={ <PublicRoute> <Inicio /> </PublicRoute>}/>,
+  <Route path="/recuperar-password" element={<RecuperacionPassword />} />
 ];
 
 export default publicRoutes;

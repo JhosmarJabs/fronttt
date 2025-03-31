@@ -891,7 +891,7 @@ const Login = () => {
                         /> 
                         Recordarme
                       </label>
-                      <a href="/recuperar-contrasena" style={styles.forgotPassword}>
+                      <a href="/recuperar-password" style={styles.forgotPassword}>
                         ¿Olvidaste tu contraseña?
                       </a>
                     </div>
