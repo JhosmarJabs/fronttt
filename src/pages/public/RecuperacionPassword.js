@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Container, Form, Button, Alert, Card, Spinner } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { colors, typography, textStyles, buttons, layout } from '../../styles/styles';
+import { API_URL } from '../../config';
 
 const RecuperacionPassword = () => {
   const navigate = useNavigate();
@@ -105,138 +106,203 @@ const RecuperacionPassword = () => {
     },
   };
 
-  // Simulación de la verificación del correo electrónico
-  const verificarEmail = async (e) => {
-    e.preventDefault();
-    setError('');
-    setCargando(true);
+// 1. Función para verificar email
+const verificarEmail = async (e) => {
+  e.preventDefault();
+  console.log("🔍 FRONTEND - Iniciando verificación de email:", email);
+  setError('');
+  setCargando(true);
+  
+  try {
+    console.log("🔍 FRONTEND - Intentando conectar con API para verificar email");
+    const response = await fetch(`${API_URL}/recuperacion/verificar-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
     
-    try {
-      // Aquí iría la llamada a la API para verificar si el correo existe
-      // Simulación de respuesta de API
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Simulamos que el correo existe y obtenemos la pregunta secreta
-      setPreguntaSecreta('¿Cuál es el nombre de tu primera mascota?');
-      setPaso(2);
-      setExito('Correo verificado correctamente');
-      setTimeout(() => setExito(''), 3000);
-    } catch (error) {
-      setError('El correo electrónico no existe en nuestra base de datos.');
-    } finally {
-      setCargando(false);
+    const data = await response.json();
+    console.log("🔍 FRONTEND - Respuesta API verificarEmail:", data);
+    
+    if (!response.ok) {
+      throw new Error(data.message || 'Error al verificar email');
     }
-  };
+    
+    // Si todo va bien, establecer la pregunta secreta y pasar al siguiente paso
+    setPreguntaSecreta(data.preguntaSecreta);
+    setPaso(2);
+    setExito('Correo verificado correctamente');
+    setTimeout(() => setExito(''), 3000);
+  } catch (error) {
+    console.error("❌ FRONTEND - Error al verificar email:", error);
+    setError(error.message || 'Error al verificar el correo electrónico');
+  } finally {
+    setCargando(false);
+  }
+};
 
-  // Simulación de verificación de la respuesta secreta
-  const verificarRespuestaSecreta = async (e) => {
-    e.preventDefault();
-    setError('');
-    setCargando(true);
+// 2. Función para verificar respuesta secreta
+const verificarRespuestaSecreta = async (e) => {
+  e.preventDefault();
+  console.log("🔍 FRONTEND - Iniciando verificación de respuesta secreta para:", email);
+  setError('');
+  setCargando(true);
+  
+  try {
+    console.log("🔍 FRONTEND - Enviando respuesta:", respuestaSecreta);
+    const response = await fetch(`${API_URL}/recuperacion/verificar-respuesta`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, respuesta: respuestaSecreta }),
+    });
     
-    try {
-      // Simulación de respuesta de API
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Simulamos la verificación (en la vida real esto sería una llamada a la API)
-      // Por simplicidad, cualquier respuesta es válida para esta demo
-      setPaso(3);
-      setExito('Respuesta secreta validada correctamente');
-      setTimeout(() => setExito(''), 3000);
-    } catch (error) {
-      setError('La respuesta no es correcta. Inténtalo de nuevo.');
-    } finally {
-      setCargando(false);
+    const data = await response.json();
+    console.log("🔍 FRONTEND - Respuesta API verificarRespuesta:", data);
+    
+    if (!response.ok) {
+      throw new Error(data.message || 'Error al verificar respuesta');
     }
-  };
+    
+    // Si todo va bien, pasar al siguiente paso
+    setPaso(3);
+    setExito('Respuesta secreta validada correctamente');
+    setTimeout(() => setExito(''), 3000);
+  } catch (error) {
+    console.error("❌ FRONTEND - Error al verificar respuesta secreta:", error);
+    setError(error.message || 'Error al verificar la respuesta');
+  } finally {
+    setCargando(false);
+  }
+};
 
-  // Simulación de generación y envío de token
-  const generarEnviarToken = async (e) => {
-    e.preventDefault();
-    setError('');
-    setCargando(true);
+// 3. Función para generar y enviar token
+const generarEnviarToken = async (e) => {
+  e.preventDefault();
+  console.log("🔍 FRONTEND - Iniciando generación de token para:", email);
+  setError('');
+  setCargando(true);
+  
+  try {
+    console.log("🔍 FRONTEND - Solicitando generación de token");
+    const response = await fetch(`${API_URL}/recuperacion/generar-token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
     
-    try {
-      // Simulación de generación de token (6 caracteres alfanuméricos)
-      const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-      let tokenTemp = '';
-      for (let i = 0; i < 6; i++) {
-        tokenTemp += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
-      }
-      setTokenGenerado(tokenTemp);
-      
-      // Simulación de envío de correo
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // En una implementación real, aquí se enviaría un correo con el token
-      console.log(`Token generado: ${tokenTemp} para el correo: ${email}`);
-      
-      setExito(`Token generado y enviado a ${email}`);
-      setTimeout(() => setExito(''), 3000);
-    } catch (error) {
-      setError('Error al generar o enviar el token. Inténtalo de nuevo.');
-    } finally {
-      setCargando(false);
+    const data = await response.json();
+    console.log("🔍 FRONTEND - Respuesta API generarToken:", data);
+    
+    if (!response.ok) {
+      throw new Error(data.message || 'Error al generar token');
     }
-  };
+    
+    // Nota: El token real se envía por correo, así que no lo recibiremos en la respuesta
+    // pero podemos establecer tokenGenerado a true para indicar que se ha enviado
+    setTokenGenerado(true);
+    setExito(`Token generado y enviado a ${email}`);
+    setTimeout(() => setExito(''), 3000);
+  } catch (error) {
+    console.error("❌ FRONTEND - Error al generar token:", error);
+    setError(error.message || 'Error al generar o enviar el token');
+  } finally {
+    setCargando(false);
+  }
+};
 
-  // Simulación de verificación del token
-  const verificarToken = async (e) => {
-    e.preventDefault();
-    setError('');
-    setCargando(true);
+// 4. Función para verificar token
+const verificarToken = async (e) => {
+  e.preventDefault();
+  console.log("🔍 FRONTEND - Iniciando verificación de token:", token, "para:", email);
+  setError('');
+  setCargando(true);
+  
+  try {
+    console.log("🔍 FRONTEND - Enviando token para verificación");
+    const response = await fetch(`${API_URL}/recuperacion/verificar-token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, token }),
+    });
     
-    try {
-      // Verificamos que el token ingresado coincida con el generado
-      if (token !== tokenGenerado) {
-        throw new Error('Token inválido');
-      }
-      
-      // Simulación de respuesta de API
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setPaso(4);
-      setExito('Token validado correctamente');
-      setTimeout(() => setExito(''), 3000);
-    } catch (error) {
-      setError('El token ingresado no es válido o ha expirado.');
-    } finally {
-      setCargando(false);
+    const data = await response.json();
+    console.log("🔍 FRONTEND - Respuesta API verificarToken:", data);
+    
+    if (!response.ok) {
+      throw new Error(data.message || 'Error al verificar token');
     }
-  };
+    
+    // Si todo va bien, pasar al siguiente paso
+    setPaso(4);
+    setExito('Token validado correctamente');
+    setTimeout(() => setExito(''), 3000);
+  } catch (error) {
+    console.error("❌ FRONTEND - Error al verificar token:", error);
+    setError(error.message || 'El token ingresado no es válido o ha expirado');
+  } finally {
+    setCargando(false);
+  }
+};
 
-  // Simulación de cambio de contraseña
-  const cambiarPassword = async (e) => {
-    e.preventDefault();
-    setError('');
-    setCargando(true);
-    
-    try {
-      // Verificar que las contraseñas coincidan
-      if (nuevaPassword !== confirmarPassword) {
-        throw new Error('Las contraseñas no coinciden');
-      }
-      
-      // Validar que la contraseña cumpla con requisitos mínimos
-      if (nuevaPassword.length < 8) {
-        throw new Error('La contraseña debe tener al menos 8 caracteres');
-      }
-      
-      // Simulación de respuesta de API
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      setExito('¡Contraseña actualizada correctamente! Redirigiendo al inicio de sesión...');
-      
-      // Redirigir al login después de 3 segundos
-      setTimeout(() => {
-        navigate('/login');
-      }, 3000);
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setCargando(false);
+// 5. Función para cambiar contraseña
+const cambiarPassword = async (e) => {
+  e.preventDefault();
+  console.log("🔍 FRONTEND - Iniciando cambio de contraseña para:", email);
+  setError('');
+  setCargando(true);
+  
+  try {
+    // Verificar que las contraseñas coincidan en el cliente
+    if (nuevaPassword !== confirmarPassword) {
+      throw new Error('Las contraseñas no coinciden');
     }
-  };
+    
+    // Validar que la contraseña cumpla con requisitos mínimos
+    if (nuevaPassword.length < 8) {
+      throw new Error('La contraseña debe tener al menos 8 caracteres');
+    }
+    
+    console.log("🔍 FRONTEND - Enviando nueva contraseña");
+    const response = await fetch(`${API_URL}/recuperacion/actualizar-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        email, 
+        token, 
+        nuevaPassword 
+      }),
+    });
+    
+    const data = await response.json();
+    console.log("🔍 FRONTEND - Respuesta API actualizarPassword:", data);
+    
+    if (!response.ok) {
+      throw new Error(data.message || 'Error al actualizar contraseña');
+    }
+    
+    setExito('¡Contraseña actualizada correctamente! Redirigiendo al inicio de sesión...');
+    
+    // Redirigir al login después de 3 segundos
+    setTimeout(() => {
+      navigate('/login');
+    }, 3000);
+  } catch (error) {
+    console.error("❌ FRONTEND - Error al cambiar contraseña:", error);
+    setError(error.message || 'Error al actualizar la contraseña');
+  } finally {
+    setCargando(false);
+  }
+};
 
   // Renderizado de los indicadores de paso
   const renderPasos = () => {

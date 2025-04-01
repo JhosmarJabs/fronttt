@@ -2,13 +2,7 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Nav, Badge } from "react-bootstrap";
 import { colors, typography } from "../../styles/styles";
-import {
-  FaHome,
-  FaMicrochip,
-  FaBell,
-  FaClipboardList,
-  FaGlobe
-} from "react-icons/fa";
+import { FaHome, FaMicrochip, FaBell, FaClipboardList, FaGlobe} from "react-icons/fa";
 
 const SidebarPrivate = ({ isOpen, onToggle }) => {
   const location = useLocation();
@@ -26,7 +20,7 @@ const SidebarPrivate = ({ isOpen, onToggle }) => {
   };
 
   // Contador de dispositivos activos (ejemplo)
-  const activeDevices = 4;
+  const activeDevices = 0;
 
   // Estilos principales
   const styles = {
@@ -111,7 +105,6 @@ const SidebarPrivate = ({ isOpen, onToggle }) => {
       icon: <FaMicrochip style={styles.icon} />,
       text: "Dispositivos IoT",
       badge: {
-        count: activeDevices,
         color: colors.primaryLight,
         textColor: colors.white
       }

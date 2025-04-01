@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from "react";
-import {Container,Row,Col,Card,Accordion,Spinner,Alert,Button} from "react-bootstrap";
+import {
+  Container,
+  Row,
+  Col,
+  Card,
+  Accordion,
+  Spinner,
+  Alert,
+  Button,
+} from "react-bootstrap";
 import { colors, textStyles, typography } from "../../styles/styles";
 import { API_URL } from "../../config";
 
@@ -21,7 +30,8 @@ const Politicas = () => {
         }
 
         const data = await response.json();
-        setPoliticas(data);
+        // Tomamos el primer elemento del array, ya que la API devuelve un array
+        setPoliticas(data.length > 0 ? data[0] : null);
         setError(null);
       } catch (error) {
         console.error("Error al obtener las políticas:", error);
@@ -298,15 +308,18 @@ const Politicas = () => {
         <Row style={styles.headerSection}>
           <Col xs={12} className="text-center">
             <h1 style={styles.title}>
-              {politicas.pageTitle}
+              {politicas?.pageTitle || "Políticas de JADA Company"}
               <div style={styles.titleLine}></div>
             </h1>
-            <p style={styles.sectionIntro}>{politicas.pageIntro}</p>
+            <p style={styles.sectionIntro}>
+              {politicas?.pageIntro ||
+                "Conozca nuestras políticas y lineamientos"}
+            </p>
           </Col>
         </Row>
 
-        {/* Políticas del Cliente */}
-        {politicas.clientPolicies && (
+        {/* Client Policies Section */}
+        {politicas?.clientPolicies && (
           <Row className="mb-5" id="cliente">
             <Col xs={12}>
               <h2 style={styles.subtitle}>{politicas.clientPolicies.title}</h2>
@@ -323,17 +336,14 @@ const Politicas = () => {
                       </span>
                     </Accordion.Header>
                     <Accordion.Body style={styles.accordionBody}>
-                      {policy.content.map((paragraph, i) =>
-                        policy.highlights ? (
-                          highlightTextInContent(paragraph, policy.highlights)
-                        ) : (
-                          <p
-                            key={i}
-                            style={styles.paragraph}
-                            dangerouslySetInnerHTML={{ __html: paragraph }}
-                          />
-                        )
-                      )}
+                      {policy.content.map((paragraph, i) => (
+                        <div key={i}>
+                          {policy.highlights && policy.highlights.length > 0
+                            ? highlightTextInContent(paragraph, policy.highlights)
+                            : <p style={styles.paragraph}>{paragraph}</p>
+                          }
+                        </div>
+                      ))}
                     </Accordion.Body>
                   </Accordion.Item>
                 ))}
@@ -344,8 +354,8 @@ const Politicas = () => {
 
         <hr style={styles.sectionDivider} />
 
-        {/* Políticas de la Empresa */}
-        {politicas.companyPolicies && (
+        {/* Company Policies Section */}
+        {politicas?.companyPolicies && (
           <Row className="mb-5" id="empresa">
             <Col xs={12}>
               <h2 style={styles.subtitle}>{politicas.companyPolicies.title}</h2>
@@ -367,11 +377,12 @@ const Politicas = () => {
                       </Card.Header>
                       <Card.Body style={styles.cardBody}>
                         {policy.content.map((paragraph, i) => (
-                          <p
-                            key={i}
-                            style={styles.paragraph}
-                            dangerouslySetInnerHTML={{ __html: paragraph }}
-                          />
+                          <div key={i}>
+                            {policy.highlights && policy.highlights.length > 0
+                              ? highlightTextInContent(paragraph, policy.highlights)
+                              : <p style={styles.paragraph}>{paragraph}</p>
+                            }
+                          </div>
                         ))}
                       </Card.Body>
                     </Card>
@@ -384,8 +395,8 @@ const Politicas = () => {
 
         <hr style={styles.sectionDivider} />
 
-        {/* Políticas de Privacidad */}
-        {politicas.privacyPolicies && (
+        {/* Privacy Policies Section */}
+        {politicas?.privacyPolicies && (
           <Row id="privacidad">
             <Col xs={12}>
               <h2 style={styles.subtitle}>{politicas.privacyPolicies.title}</h2>
@@ -395,18 +406,7 @@ const Politicas = () => {
 
               <Row>
                 {politicas.privacyPolicies.items.map((policy) => (
-                  <Col
-                    lg={
-                      policy.id === "data"
-                        ? 4
-                        : policy.id === "rights" || policy.id === "changes"
-                        ? 6
-                        : 4
-                    }
-                    md={6}
-                    className="mb-4"
-                    key={policy.id}
-                  >
+                  <Col md={6} lg={4} className="mb-4" key={policy.id}>
                     <Card style={styles.policyCard}>
                       <Card.Header style={styles.cardHeader}>
                         <h3 style={styles.cardTitle}>
@@ -418,11 +418,12 @@ const Politicas = () => {
                       </Card.Header>
                       <Card.Body style={styles.cardBody}>
                         {policy.content.map((paragraph, i) => (
-                          <p
-                            key={i}
-                            style={styles.paragraph}
-                            dangerouslySetInnerHTML={{ __html: paragraph }}
-                          />
+                          <div key={i}>
+                            {policy.highlights && policy.highlights.length > 0
+                              ? highlightTextInContent(paragraph, policy.highlights)
+                              : <p style={styles.paragraph}>{paragraph}</p>
+                            }
+                          </div>
                         ))}
                       </Card.Body>
                     </Card>

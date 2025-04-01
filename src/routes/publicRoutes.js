@@ -33,7 +33,7 @@ const publicRoutes = [
   <Route key="servicios" path="/servicios" element={ <PublicRoute> <Servicios /> </PublicRoute>}/>,
   <Route key="nosotros" path="/nosotros" element={ <PublicRoute> <Nosotros /> </PublicRoute>}/>,
   <Route key="contacto" path="/contacto" element={ <PublicRoute> <Contacto /> </PublicRoute>}/>,
-  <Route key="preguntas-frecuentes "path="/preguntas-frecuentes" element={<PreguntasFrecuentes />} />,
+<Route key="preguntas-frecuentes" path="/preguntas-frecuentes" element={ <PublicRoute> <PreguntasFrecuentes /> </PublicRoute>}/>,
   <Route key="politicas" path="/politicas" element={ <PublicRoute> <Politicas /> </PublicRoute>}/>,
   <Route key="testimonios" path="/testimonios" element={ <PublicRoute> <Testimonios /> </PublicRoute>}/>,
   <Route key="login" path="/login" element={ <PublicRoute> <Login /> </PublicRoute>}/>,

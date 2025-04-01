@@ -40,6 +40,9 @@ const Dashboard = () => {
   const [timeSchedule, setTimeSchedule] = useState({ open: '08:00', close: '20:00' });
   const [daysActive, setDaysActive] = useState(['lunes', 'martes', 'miércoles', 'jueves', 'viernes']);
 
+  // Estado para la ciudad seleccionada
+  const [selectedCity, setSelectedCity] = useState('Huejutla de Reyes, MX');
+
   // MQTT Configuration
   const mqttConfig = {
     // Cambia estos valores según tu configuración
@@ -59,6 +62,211 @@ const Dashboard = () => {
       persianasMode: 'sensores/motor/mode',
       weatherData: 'sensores/weather'
     }
+  };
+
+  // Mapear las condiciones climáticas de OpenWeatherMap a nuestras condiciones
+  const mapWeatherCondition = (condition) => {
+    const conditionMap = {
+      'Clear': 'sunny',
+      'Clouds': 'cloudy',
+      'Few clouds': 'partly_cloudy',
+      'Scattered clouds': 'partly_cloudy',
+      'Broken clouds': 'partly_cloudy',
+      'Rain': 'rainy',
+      'Light rain': 'rainy',
+      'Moderate rain': 'rainy',
+      'Shower rain': 'rainy',
+      'Heavy intensity rain': 'rainy',
+      'Thunderstorm': 'rainy',
+      'Snow': 'cloudy',
+      'Mist': 'cloudy',
+      'Fog': 'cloudy',
+      'Haze': 'cloudy',
+      'Drizzle': 'rainy'
+    };
+    
+    return conditionMap[condition] || 'partly_cloudy';
+  };
+
+  // Procesar los datos de pronóstico de 5 días
+  const processForecastData = (forecastData) => {
+    // Crear un mapa para agrupar las previsiones por día
+    const dailyForecasts = {};
+    const today = new Date().toLocaleDateString('es-ES', { weekday: 'long' });
+    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    
+    // Obtener el día de la semana actual
+    const currentDayIndex = new Date().getDay();
+    
+    // Obtener los próximos 3 días (hoy, mañana y pasado mañana)
+    const nextDays = [
+      'Hoy',
+      'Mañana',
+      days[(currentDayIndex + 2) % 7]
+    ];
+    
+    // Inicializar el objeto con los próximos días
+    nextDays.forEach(day => {
+      dailyForecasts[day] = {
+        temperatures: [],
+        conditions: []
+      };
+    });
+    
+    // Agrupar pronósticos por día
+    forecastData.list.forEach(forecast => {
+      const date = new Date(forecast.dt * 1000);
+      const dayDiff = Math.floor((date - new Date()) / (1000 * 60 * 60 * 24));
+      
+      let dayKey;
+      if (dayDiff < 1) {
+        dayKey = 'Hoy';
+      } else if (dayDiff < 2) {
+        dayKey = 'Mañana';
+      } else if (dayDiff < 3) {
+        dayKey = nextDays[2];
+      } else {
+        return; // Ignorar pronósticos más allá de 3 días
+      }
+      
+      if (dailyForecasts[dayKey]) {
+        dailyForecasts[dayKey].temperatures.push(forecast.main.temp);
+        dailyForecasts[dayKey].conditions.push(forecast.weather[0].main);
+      }
+    });
+    
+    // Calcular temperatura promedio y condición más común para cada día
+    return nextDays.map(day => {
+      const forecast = dailyForecasts[day];
+      
+      // Si no hay datos para este día, proporcionar valores predeterminados
+      if (!forecast.temperatures.length) {
+        return {
+          day,
+          temp: 0,
+          condition: 'partly_cloudy'
+        };
+      }
+      
+      // Calcular temperatura promedio
+      const avgTemp = forecast.temperatures.reduce((sum, temp) => sum + temp, 0) / forecast.temperatures.length;
+      
+      // Encontrar la condición climática más común
+      const conditionCounts = {};
+      forecast.conditions.forEach(condition => {
+        conditionCounts[condition] = (conditionCounts[condition] || 0) + 1;
+      });
+      
+      const mostCommonCondition = Object.entries(conditionCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(entry => entry[0])[0];
+      
+      return {
+        day,
+        temp: Math.round(avgTemp),
+        condition: mapWeatherCondition(mostCommonCondition)
+      };
+    });
+  };
+
+  // Función para obtener datos del clima con OpenWeatherMap
+  const fetchWeatherData = async (city = selectedCity) => {
+    setLoading(true);
+    try {
+      // API Key de OpenWeatherMap - deberías reemplazar esto con tu propia API key
+      const API_KEY = '81e594329a13bb1d11f9295244063217'; 
+      
+      // URL de la API de OpenWeatherMap
+      const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&units=metric&appid=${API_KEY}`;
+      
+      // Llamada a la API para datos actuales
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Error HTTP: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Transformar los datos al formato esperado por nuestro componente
+      const weatherCondition = mapWeatherCondition(data.weather[0].main);
+      
+      // URL para el pronóstico de 5 días
+      const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?q=${city}&units=metric&appid=${API_KEY}`;
+      const forecastResponse = await fetch(forecastUrl);
+      
+      if (!forecastResponse.ok) {
+        throw new Error(`Error HTTP en pronóstico: ${forecastResponse.status}`);
+      }
+      
+      const forecastData = await forecastResponse.json();
+      
+      // Extraer pronóstico para los próximos días
+      const forecast = processForecastData(forecastData);
+      
+      // Armar el objeto de datos del clima
+      const weatherData = {
+        condition: weatherCondition,
+        temperature: data.main.temp,
+        humidity: data.main.humidity,
+        windSpeed: data.wind.speed,
+        forecast: forecast
+      };
+      
+      setWeatherData(weatherData);
+      
+      // Si estamos usando MQTT, publicar los datos
+      if (client && isConnected) {
+        client.publish(mqttConfig.topics.weatherData, JSON.stringify(weatherData), { qos: 1 });
+      }
+      
+      // Actualizar también los valores de temperatura y humedad si están disponibles
+      setTemperature(data.main.temp);
+      setHumidity(data.main.humidity);
+      
+      console.log('Datos del clima actualizados correctamente:', weatherData);
+    } catch (error) {
+      console.error("Error al obtener datos del clima:", error);
+      // Usar datos fallback en caso de error
+      setWeatherData({
+        condition: 'cloudy',
+        temperature: 23.5,
+        humidity: 65,
+        windSpeed: 10.4,
+        forecast: [
+          { day: 'Hoy', temp: 23, condition: 'partly_cloudy' },
+          { day: 'Mañana', temp: 25, condition: 'sunny' },
+          { day: 'Miércoles', temp: 22, condition: 'rainy' }
+        ]
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Componente para seleccionar ciudad
+  const CitySelector = () => {
+    const handleCityChange = (e) => {
+      const newCity = e.target.value;
+      setSelectedCity(newCity);
+      fetchWeatherData(newCity);
+    };
+    
+    return (
+      <Form.Group className="mb-3">
+        <Form.Label style={{ color: colors.primaryMedium }}>Ciudad para el clima</Form.Label>
+        <Form.Select 
+          value={selectedCity}
+          onChange={handleCityChange}
+          style={{ 
+            borderRadius: '8px',
+            backgroundColor: persianasColors.primaryBackground
+          }}
+        >
+          <option value="Huejutla de Reyes, MX">Huejutla de Reyes</option>
+        </Form.Select>
+      </Form.Group>
+    );
   };
 
   // Función para controlar el LED siguiendo la lógica de IoTTest
@@ -208,6 +416,53 @@ const Dashboard = () => {
     // No necesitamos el intervalo ya que MQTT nos enviará actualizaciones en tiempo real
   }, []);
 
+  // Efecto para obtener datos del clima
+  useEffect(() => {
+    // Realizar llamada a la API del clima independientemente de la conexión MQTT
+    fetchWeatherData();
+    
+    // Establecer intervalo para actualizar los datos cada 30 minutos
+    const weatherInterval = setInterval(() => {
+      fetchWeatherData();
+    }, 30 * 60 * 1000); // 30 minutos
+    
+    return () => clearInterval(weatherInterval);
+  }, []); // Se ejecuta solo al montar el componente
+
+  // Simulación de sensores (solo cuando no hay conexión MQTT)
+  useEffect(() => {
+    if (!isConnected) {
+      const interval = setInterval(() => {
+        // Simular fluctuación de temperatura
+        setTemperature(prev => {
+          const fluctuation = (Math.random() - 0.5) * 0.2;
+          return parseFloat((prev + fluctuation).toFixed(1));
+        });
+        
+        // Simular fluctuación de humedad
+        setHumidity(prev => {
+          const fluctuation = (Math.random() - 0.5) * 1.5;
+          return parseFloat((prev + fluctuation).toFixed(1));
+        });
+        
+        // Simular fluctuación de luminosidad según la hora del día
+        const hour = new Date().getHours();
+        let baseLuminosity;
+        
+        // Más luz durante el día (8am - 8pm)
+        if (hour >= 8 && hour < 20) {
+          baseLuminosity = 70 + Math.random() * 30; // 70-100% durante el día
+        } else {
+          baseLuminosity = Math.random() * 20; // 0-20% durante la noche
+        }
+        
+        setLuminosity(parseFloat(baseLuminosity.toFixed(1)));
+      }, 5000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [isConnected]);
+
   // Función para encender el LED (estilo IoTTest)
   const encenderLed = () => {
     controlarLed("encender");
@@ -270,72 +525,6 @@ const Dashboard = () => {
     }
   }, [client, isConnected, mqttConfig.topics.persianasMode, timeSchedule, daysActive]);
 
-  // Simulación de sensores (solo cuando no hay conexión MQTT)
-  useEffect(() => {
-    if (!isConnected) {
-      const interval = setInterval(() => {
-        // Simular fluctuación de temperatura
-        setTemperature(prev => {
-          const fluctuation = (Math.random() - 0.5) * 0.2;
-          return parseFloat((prev + fluctuation).toFixed(1));
-        });
-        
-        // Simular fluctuación de humedad
-        setHumidity(prev => {
-          const fluctuation = (Math.random() - 0.5) * 1.5;
-          return parseFloat((prev + fluctuation).toFixed(1));
-        });
-        
-        // Simular fluctuación de luminosidad según la hora del día
-        const hour = new Date().getHours();
-        let baseLuminosity;
-        
-        // Más luz durante el día (8am - 8pm)
-        if (hour >= 8 && hour < 20) {
-          baseLuminosity = 70 + Math.random() * 30; // 70-100% durante el día
-        } else {
-          baseLuminosity = Math.random() * 20; // 0-20% durante la noche
-        }
-        
-        setLuminosity(parseFloat(baseLuminosity.toFixed(1)));
-      }, 5000);
-      
-      return () => clearInterval(interval);
-    }
-  }, [isConnected]);
-
-  // Simulación de API del clima (solo cuando no hay conexión MQTT)
-  useEffect(() => {
-    if (!isConnected) {
-      const fetchWeatherData = async () => {
-        setLoading(true);
-        try {
-          
-          // Simulamos respuesta
-          setTimeout(() => {
-            setWeatherData({
-              condition: 'partly_cloudy', // 'sunny', 'cloudy', 'rainy', 'windy'
-              temperature: 23.5,
-              humidity: 65,
-              windSpeed: 10.4,
-              forecast: [
-                { day: 'Hoy', temp: 23, condition: 'partly_cloudy' },
-                { day: 'Mañana', temp: 25, condition: 'sunny' },
-                { day: 'Miércoles', temp: 22, condition: 'rainy' }
-              ]
-            });
-            setLoading(false);
-          }, 1500);
-        } catch (error) {
-          console.error("Error al obtener datos del clima:", error);
-          setLoading(false);
-        }
-      };
-  
-      fetchWeatherData();
-    }
-  }, [isConnected]);
-
   // Función para manejar el cambio de posición de las persianas (CORREGIDA)
   const handleMovePersianas = (newPosition) => {
     // Asegurar que el valor es un número entre 0 y 100
@@ -348,7 +537,6 @@ const Dashboard = () => {
     publishPersianaCommand(validPosition);
   };
   
-
   // Función para cambiar el modo de operación
   const handleModeChange = (newMode) => {
     publishModeCommand(newMode);
@@ -516,7 +704,7 @@ const Dashboard = () => {
                             <i className="bi bi-cloud-fill" style={{ fontSize: '25px', color: "white" }}></i>
                           </div>
                           
-                          {/* Persianas animadas */}
+                          {/* Persianas animadas - Actualizado para coincidir con slider invertido */}
                           <div style={{ height: '100%', position: 'relative' }}>
                             {Array.from({ length: 8 }).map((_, i) => (
                               <div 
@@ -526,7 +714,7 @@ const Dashboard = () => {
                                   top: `${(i * 12.5)}%`,
                                   left: 0,
                                   right: 0,
-                                  height: `${100 - persianasPosition <= i * 12.5 ? 0 : '12.5%'}`,
+                                  height: `${persianasPosition <= i * 12.5 ? 0 : '12.5%'}`,
                                   backgroundColor: colors.primaryLight,
                                   borderBottom: `1px solid ${colors.primaryMedium}`,
                                   transition: 'height 0.5s ease'
@@ -539,24 +727,27 @@ const Dashboard = () => {
 
                       {/* Control deslizante y botones - CORREGIDO */}
                       <div className="mb-3 d-flex align-items-center">
-                        <i className="bi bi-arrow-down" style={{ fontSize: '24px', color: colors.white }}></i>
+                        <i className="bi bi-arrow-up" style={{ fontSize: '24px', color: colors.white }}></i>
                         <input 
                           type="range" 
                           min="0" 
                           max="100" 
                           step="1"
-                          value={persianasPosition}
-                          onChange={(e) => handleMovePersianas(parseInt(e.target.value))}
+                          value={100 - persianasPosition} // Invertimos el valor
+                          onChange={(e) => handleMovePersianas(100 - parseInt(e.target.value))} // Invertimos la lógica
                           className="form-range mx-2 flex-grow-1"
-                          style={{ height: '30px' }}
+                          style={{ 
+                            height: '30px',
+                            transform: 'rotate(180deg)' // Giramos el slider visualmente
+                          }}
                         />
-                        <i className="bi bi-arrow-up" style={{ fontSize: '24px', color: colors.white }}></i>
+                        <i className="bi bi-arrow-down" style={{ fontSize: '24px', color: colors.white }}></i>
                       </div>
 
                       {/* Botones de control rápido */}
                       <div className="d-flex justify-content-between mt-2">
                         <Button 
-                          onClick={() => handleMovePersianas(0)} 
+                          onClick={() => handleMovePersianas(100)} 
                           style={{ 
                             backgroundColor: colors.white,
                             color: colors.primaryDark,
@@ -580,7 +771,7 @@ const Dashboard = () => {
                           Media Altura
                         </Button>
                         <Button 
-                          onClick={() => handleMovePersianas(100)} 
+                          onClick={() => handleMovePersianas(0)} 
                           style={{ 
                             backgroundColor: persianasColors.accentCoral,
                             border: 'none',
@@ -702,32 +893,6 @@ const Dashboard = () => {
                           </div>
                         </Card.Body>
                       </Card>
-
-                      {/* Información del clima exterior (si está disponible) */}
-                      {weatherData && (
-                        <Card className="border-0 shadow-sm" style={{ borderRadius: '10px' }}>
-                          <Card.Body className="p-3 d-flex flex-column align-items-center">
-                            {renderWeatherIcon(weatherData.condition)}
-                            <h4 style={{ 
-                              fontFamily: typography.fontPrimary,
-                              color: colors.primaryDark,
-                              margin: '10px 0',
-                              fontSize: '1.2rem',
-                              textAlign: 'center'
-                            }}>
-                              Temperatura<br/>Exterior
-                            </h4>
-                            <div style={{
-                              fontFamily: typography.fontPrimary,
-                              fontSize: '2rem',
-                              fontWeight: 'bold',
-                              color: colors.primaryMedium
-                            }}>
-                              {weatherData.temperature}°C
-                            </div>
-                          </Card.Body>
-                        </Card>
-                      )}
                     </Col>
                   </Row>
                 </Card.Body>
@@ -750,6 +915,8 @@ const Dashboard = () => {
                         }}>
                           Clima Exterior
                         </h4>
+                        
+                        <CitySelector />
                         
                         <div className="d-flex justify-content-between mb-3">
                           {weatherData.forecast.map((day, index) => (
@@ -780,7 +947,7 @@ const Dashboard = () => {
                         }}>
                           <div className="d-flex justify-content-between mb-2">
                             <span style={{ color: colors.primaryMedium }}>Humedad:</span>
-                            <span style={{ color: colors.primaryDark, fontWeight: 'bold' }}>{humidity}%</span>
+                            <span style={{ color: colors.primaryDark, fontWeight: 'bold' }}>{weatherData.humidity}%</span>
                           </div>
                           <div className="d-flex justify-content-between">
                             <span style={{ color: colors.primaryMedium }}>Velocidad del viento:</span>
