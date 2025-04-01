@@ -1,116 +1,55 @@
 import React, { useState, useEffect } from "react";
-import { Row, Col, Card, Button, Tabs, Tab} from "react-bootstrap";
-import { colors, typography, textStyles, buttons} from "../../styles/styles";
-import DispositivosList from "../../components/DispositivosList.js";
-import DispositivoDetail from "../../components/DispositivoDetail.js";
+import { Row, Col, Card, Button, Tabs, Tab, Modal, Form, Alert, Table, Badge } from "react-bootstrap";
+import { colors, typography, textStyles, buttons } from "../../styles/styles";
 
 const Dispositivos = () => {
   const [activeTab, setActiveTab] = useState("lista");
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showModalAlta, setShowModalAlta] = useState(false);
+  const [formData, setFormData] = useState({
+    mac: "",
+    nombre: "",
+    tipo: "Sensor",
+    ubicacion: "",
+    status: true,
+  });
+  const [validated, setValidated] = useState(false);
 
-  // Simular carga de dispositivos (se reemplazaría con llamada a API)
   useEffect(() => {
-    setTimeout(() => {
-      // Datos de ejemplo - esto vendría de la API
-      const mockDevices = [
-        {
-          id: "1001",
-          name: "Cámara de Seguridad",
-          type: "Seguridad",
-          location: "Entrada Principal",
-          status: "active",
-          lastConnection: "2025-03-18T14:30:00",
-          purchaseDate: "2024-05-10",
-          brand: "SecureVision",
-          model: "SV-Pro200",
-          ip: "192.168.1.101",
-          firmware: "v2.1.3",
-          batteryLevel: 85,
-        },
-        {
-          id: "1002",
-          name: "Termostato Inteligente",
-          type: "Climatización",
-          location: "Salón",
-          status: "active",
-          lastConnection: "2025-03-19T09:15:00",
-          purchaseDate: "2024-07-22",
-          brand: "SmartTemp",
-          model: "ST-501",
-          ip: "192.168.1.102",
-          firmware: "v3.0.2",
-          temperature: 22.5,
-        },
-        {
-          id: "1003",
-          name: "Sensor de Movimiento",
-          type: "Seguridad",
-          location: "Pasillo",
-          status: "inactive",
-          lastConnection: "2025-03-15T23:45:00",
-          purchaseDate: "2024-04-18",
-          brand: "MotionGuard",
-          model: "MG-100",
-          ip: "192.168.1.103",
-          firmware: "v1.5.1",
-          batteryLevel: 12,
-        },
-        {
-          id: "1004",
-          name: "Control de Iluminación",
-          type: "Domótica",
-          location: "Cocina",
-          status: "active",
-          lastConnection: "2025-03-19T08:20:00",
-          purchaseDate: "2024-09-05",
-          brand: "LightControl",
-          model: "LC-2000",
-          ip: "192.168.1.104",
-          firmware: "v2.2.0",
-          brightness: 75,
-        },
-        {
-          id: "1005",
-          name: "Asistente de Voz",
-          type: "Domótica",
-          location: "Dormitorio",
-          status: "active",
-          lastConnection: "2025-03-19T07:10:00",
-          purchaseDate: "2024-08-14",
-          brand: "Echo AI",
-          model: "EA-500",
-          ip: "192.168.1.105",
-          firmware: "v5.3.1",
-          volume: 50,
-        },
-      ];
+    const fetchDevices = async () => {
+      try {
+        const response = await fetch("http://localhost:3001/api/dispositivos");
+        if (!response.ok) {
+          throw new Error("Error al obtener los dispositivos");
+        }
+        const data = await response.json();
+        setDevices(data);
+      } catch (error) {
+        console.error("Error:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      setDevices(mockDevices);
-      setLoading(false);
-    }, 1000);
+    fetchDevices();
   }, []);
 
-  // Cambiar a la vista de detalle cuando se selecciona un dispositivo
   const handleDeviceSelect = (deviceId) => {
     const device = devices.find((d) => d.id === deviceId);
     setSelectedDevice(device);
     setActiveTab("detalle");
   };
 
-  // Volver a la lista de dispositivos
   const handleBackToList = () => {
     setActiveTab("lista");
     setSelectedDevice(null);
   };
 
-  // Función para aplicar cambios al dispositivo (simulando actualización a backend)
   const handleUpdateDevice = (updatedDevice) => {
-    // En una aplicación real, aquí se enviarían los datos al backend
     console.log("Actualizando dispositivo:", updatedDevice);
 
-    // Actualizamos el estado local
     const updatedDevices = devices.map((device) =>
       device.id === updatedDevice.id ? updatedDevice : device
     );
@@ -118,8 +57,60 @@ const Dispositivos = () => {
     setDevices(updatedDevices);
     setSelectedDevice(updatedDevice);
 
-    // Mostramos mensaje de éxito
     alert("Dispositivo actualizado correctamente");
+  };
+
+  const handleOpenModalAlta = () => {
+    setFormData({
+      mac: "",
+      nombre: "",
+      tipo: "Sensor",
+      ubicacion: "",
+      status: true,
+    });
+    setValidated(false);
+    setShowModalAlta(true);
+  };
+
+  const handleCloseModalAlta = () => {
+    setShowModalAlta(false);
+  };
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData({
+      ...formData,
+      [name]: type === "checkbox" ? checked : value,
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+
+    if (form.checkValidity() === false) {
+      e.stopPropagation();
+      setValidated(true);
+      return;
+    }
+
+    try {
+      const newDevice = {
+        id: `${devices.length + 1001}`,
+        mac: formData.mac,
+        nombre: formData.nombre,
+        tipo: formData.tipo,
+        ubicacion: formData.ubicacion,
+        status: formData.status,
+      };
+
+      setDevices([...devices, newDevice]);
+      handleCloseModalAlta();
+      alert("Dispositivo agregado correctamente");
+    } catch (error) {
+      console.error("Error al agregar dispositivo:", error);
+      alert("Error al agregar dispositivo");
+    }
   };
 
   return (
@@ -157,8 +148,8 @@ const Dispositivos = () => {
                       fontSize: "14px",
                     }}
                   >
-                    {devices.filter((d) => d.status === "active").length}{" "}
-                    dispositivos activos de {devices.length} totales
+                    {devices.filter((d) => d.status).length} dispositivos
+                    activos de {devices.length} totales
                   </p>
                 </Col>
                 <Col md={3} className="text-end">
@@ -195,46 +186,192 @@ const Dispositivos = () => {
               activeKey={activeTab}
               onSelect={(k) => setActiveTab(k)}
               className="mb-4"
-              style={{
-                borderBottom: `1px solid ${colors.accent}`,
-              }}
             >
-              <Tab
-                eventKey="lista"
-                title="Lista de Dispositivos"
-                style={{
-                  fontFamily: typography.fontPrimary,
-                  color: colors.primaryDark,
-                }}
-              >
+              <Tab eventKey="lista" title="Lista de Dispositivos">
                 {activeTab === "lista" && (
-                  <DispositivosList
-                    devices={devices}
-                    onSelectDevice={handleDeviceSelect}
-                  />
+                  <div>
+                    <div className="d-flex justify-content-end mb-3">
+                      <Button
+                        variant="primary"
+                        onClick={handleOpenModalAlta}
+                        style={{
+                          backgroundColor: colors.primaryDark,
+                          borderColor: colors.primaryDark,
+                        }}
+                      >
+                        Agregar Dispositivo
+                      </Button>
+                    </div>
+                    <Table responsive hover>
+                      <thead>
+                        <tr>
+                          <th>MAC</th>
+                          <th>Nombre</th>
+                          <th>Tipo</th>
+                          <th>Ubicación</th>
+                          <th>Estado</th>
+                          <th>Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {devices.map((device) => (
+                          <tr key={device.id}>
+                            <td>{device.mac}</td>
+                            <td>{device.nombre}</td>
+                            <td>{device.tipo}</td>
+                            <td>{device.ubicacion}</td>
+                            <td>
+                              <Badge bg={device.status ? "success" : "danger"}>
+                                {device.status ? "Activo" : "Inactivo"}
+                              </Badge>
+                            </td>
+                            <td>
+                              <Button
+                                variant="outline-primary"
+                                size="sm"
+                                className="me-2"
+                                onClick={() => handleDeviceSelect(device.id)}
+                              >
+                                Ver Detalles
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </Table>
+                  </div>
                 )}
               </Tab>
               <Tab
                 eventKey="detalle"
                 title="Vista Detalle"
                 disabled={!selectedDevice}
-                style={{
-                  fontFamily: typography.fontPrimary,
-                  color: colors.primaryDark,
-                }}
               >
                 {activeTab === "detalle" && selectedDevice && (
-                  <DispositivoDetail
-                    device={selectedDevice}
-                    onBack={handleBackToList}
-                    onUpdate={handleUpdateDevice}
-                  />
+                  <div>
+                    <h4>Detalles del Dispositivo</h4>
+                    <p>MAC: {selectedDevice.mac}</p>
+                    <p>Nombre: {selectedDevice.nombre}</p>
+                    <p>Tipo: {selectedDevice.tipo}</p>
+                    <p>Ubicación: {selectedDevice.ubicacion}</p>
+                    <p>
+                      Estado: {selectedDevice.status ? "Activo" : "Inactivo"}
+                    </p>
+                    <Button
+                      variant="secondary"
+                      onClick={handleBackToList}
+                      style={{
+                        backgroundColor: colors.primaryDark,
+                        borderColor: colors.primaryDark,
+                      }}
+                    >
+                      Volver a la Lista
+                    </Button>
+                  </div>
                 )}
               </Tab>
             </Tabs>
           </Card.Body>
         </Card>
       )}
+
+      <Modal show={showModalAlta} onHide={handleCloseModalAlta}>
+        <Modal.Header
+          closeButton
+          style={{ backgroundColor: colors.primaryMedium, color: colors.white }}
+        >
+          <Modal.Title>Nuevo Dispositivo</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form noValidate validated={validated} onSubmit={handleSubmit}>
+            <Form.Group className="mb-3">
+              <Form.Label>MAC Address *</Form.Label>
+              <Form.Control
+                type="text"
+                name="mac"
+                value={formData.mac}
+                onChange={handleChange}
+                required
+                pattern="^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"
+                placeholder="00:1A:2B:3C:4D:5E"
+              />
+              <Form.Control.Feedback type="invalid">
+                Ingrese una dirección MAC válida (formato: XX:XX:XX:XX:XX:XX)
+              </Form.Control.Feedback>
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Nombre del Dispositivo *</Form.Label>
+              <Form.Control
+                type="text"
+                name="nombre"
+                value={formData.nombre}
+                onChange={handleChange}
+                required
+                placeholder="Ej: Sensor de Temperatura Sala"
+              />
+              <Form.Control.Feedback type="invalid">
+                El nombre es requerido
+              </Form.Control.Feedback>
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Tipo de Dispositivo *</Form.Label>
+              <Form.Select
+                name="tipo"
+                value={formData.tipo}
+                onChange={handleChange}
+                required
+              >
+                <option value="Sensor">Sensor</option>
+                <option value="Controlador">Controlador</option>
+                <option value="Actuador">Actuador</option>
+              </Form.Select>
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Ubicación *</Form.Label>
+              <Form.Control
+                type="text"
+                name="ubicacion"
+                value={formData.ubicacion}
+                onChange={handleChange}
+                required
+                placeholder="Ej: Sala de estar"
+              />
+              <Form.Control.Feedback type="invalid">
+                La ubicación es requerida
+              </Form.Control.Feedback>
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Check
+                type="checkbox"
+                name="status"
+                label="Dispositivo activo"
+                checked={formData.status}
+                onChange={handleChange}
+              />
+            </Form.Group>
+
+            <div className="d-flex justify-content-end gap-2">
+              <Button variant="secondary" onClick={handleCloseModalAlta}>
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                type="submit"
+                style={{
+                  backgroundColor: colors.primaryDark,
+                  borderColor: colors.primaryDark,
+                }}
+              >
+                Agregar
+              </Button>
+            </div>
+          </Form>
+        </Modal.Body>
+      </Modal>
     </div>
   );
 };

@@ -175,6 +175,14 @@ const NavbarPublica = () => {
                   >
                     Contacto
                   </NavDropdown.Item>
+                  
+                  <NavDropdown.Item 
+                    as={Link} 
+                    to="/preguntas-frecuentes" 
+                    onClick={() => setExpanded(false)}
+                  >
+                    Preguntas Frecuentes
+                  </NavDropdown.Item>
                 </NavDropdown>
                 
                 <Nav.Link 
